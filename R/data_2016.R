@@ -2007,7 +2007,7 @@ system("cd /home/projects/hc-data/out/2016.09 && zip biovars_2016.09.28.zip TZA*
 #####################################################################################
 # 2016.10.17 UDEL for UGA, TZA and GHA Panel regressions (IFPRI Brown Bag)
 #####################################################################################
-# For Beliyou's resilience paper. Also need to run LTA deviations and make maps.
+# For Beliyou's resilience paper.
 
 library(data.table)
 library(raster)
