@@ -2139,10 +2139,6 @@ out.udel[, pre_udel := pre_udel*10]
 
 # Plot a sample month to PDF to check results
 tmp <- out.udel[month=="2014-01-01"]
-g2.dt <- data.table(g2@data)
-setkey(g2.dt, rn)
-setkey(tmp, rn)
-tmp <- g2.dt[tmp]
 tmp <- SpatialPolygonsDataFrame(g2, data.frame(tmp), match.ID="rn")
 
 tmap_mode("view")
