@@ -338,10 +338,10 @@ l2.spei.drought <- l2.spei[, .(
 
 spei.lbl <- c(l2.lbl[1:7],
   "normal month",
-  "months with mild drough",
-  "months with moderate drough",
-  "months with severe drough",
-  "months with extreme drough")
+  "months with mild drought",
+  "months with moderate drought",
+  "months with severe drought",
+  "months with extreme drought")
 attr(l2.spei.drought, "var.labels") <- spei.lbl
 setkey(l2.spei.drought, svyCode, svyL1Cd, svyL2Cd)
 write.dta(l2.spei.drought, "./out/2016.05/svyL2Maps-SPEI_drought_1950-2014.dta",
@@ -886,7 +886,7 @@ save.image("./out/2016.05/svyL2Maps_r16.05.RData")
 # method is considered a superior method, so the SPEIbase is recommended for most uses
 # including long-term climatological analysis.
 
-# TODO: note that earlier results for Carlo/Sara poverty paper were rin on AWS and I
+# TODO: note that earlier results for Carlo/Sara poverty paper were run on AWS and I
 # forgot to copy over all output files from /hc-data/out/2016.05/to BUSTER.
 
 library(data.table)
@@ -1340,7 +1340,7 @@ write.dta(out.uga, "./out/2016.09/UGA-GPS-SPEIbase.2.4_1950-2014_monthly.dta",
 
 
 #####################################################################################
-## 2016.09.26 Biophysical Vars for TZA and UGA LSMS-ISA panels
+# 2016.09.26 Biophysical Vars for TZA and UGA LSMS-ISA panels
 #####################################################################################
 # Re-do above with Tim's STATA files. They seem to have full concordance with survey
 # panel `hhid` codes.
@@ -2001,6 +2001,253 @@ write.dta(tmp, "./out/2016.09/UGA-GPS-SRTM.dta",
 
 # ZIP all output files for GPS coords
 system("cd /home/projects/hc-data/out/2016.09 && zip biovars_2016.09.28.zip TZA* UGA*")
+
+
+
+#####################################################################################
+# 2016.10.17 UDEL for UGA, TZA and GHA Panel regressions (IFPRI Brown Bag)
+#####################################################################################
+# For Beliyou's resilience paper. Also need to run LTA deviations and make maps.
+
+library(data.table)
+library(raster)
+library(tmap)
+library(foreign)
+library(curl)
+
+setwd("~/Projects/hc-data")
+load("./out/2016.09/svyL2Maps_r16.09.RData")
+
+# Workspace is getting too large
+rm(out.chirps, out.spei, out.srtm, out.udel, g2.out)
+
+pre <- brick("./UDEL/precip.mon.total.v401.epsg4326.nc")
+temp <- brick("./UDEL/air.mon.mean.v401.epsg4326.nc")
+
+res(pre)
+# [1] 0.5 0.5
+res(spei)
+# [1] 0.5 0.5
+identical(proj4string(pre), proj4string(g2))
+
+pre <- crop(pre, g2)
+temp <- crop(temp, g2)
+
+spplot(pre[[1]])
+spplot(temp[[1]])
+
+# Doco says 1901/01 - 2014/12
+dim(pre)
+# [1]  46  88 1380
+tm <- seq(as.Date("1900-01-01"), as.Date("2014-12-31"), "month")
+pre <- setZ(pre, tm, "month")
+temp <- setZ(temp, tm, "month")
+
+# Keep 1950/01-2014/12
+pre <- subset(pre, 601:1380)
+temp <- subset(temp, 601:1380)
+
+# Large pixels, we might need to resample to 0.1 or 0.05 degree
+# load CELL5M grid and crop it to our zone of interest
+library(hcapi3)
+grid <- hcapi("ISO3")
+grid <- SpatialPixelsDataFrame(grid[, .(X,Y)], data.frame(grid),
+  proj4string=CRS("+init=epsg:4326"))
+grid <- raster(grid, layer="CELL5M")
+grid <- crop(grid, g2)
+
+# Resample UDEL to CELL5M
+pre <- resample(pre, grid, filename="./UDEL/precip.mon.total.v401.cell5m.epsg4326.nc")
+temp <- resample(temp, grid, filename="./UDEL/air.mon.mean.v401.cell5m.epsg4326.nc")
+
+pre <- brick("./UDEL/precip.mon.total.v401.cell5m.epsg4326.nc")
+temp <- brick("./UDEL/air.mon.mean.v401.cell5m.epsg4326.nc")
+
+spplot(pre[[1]])
+spplot(temp[[1]])
+
+# Extract monthly mean precipitation across districts
+tmp <- extract(pre, g2, fun=mean, na.rm=T, small=T)
+dim(tmp)
+# [1] 756 780
+tmp <- data.table(rn=g2@data$rn, tmp)
+setnames(tmp, 2:781, format(tm[601:1380], "%Y-%m-%d"))
+tmp <- melt(tmp, id.vars=c("rn"), variable.name="month", value.name="pre_udel", variable.factor=F)
+tmp[, month := as.Date(month)]
+out.udel <- tmp
+
+summary(out.udel$month)
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max.
+# "1950-01-01" "1966-03-24" "1982-06-16" "1982-06-16" "1998-09-08" "2014-12-01"
+summary(out.udel$pre_udel)
+#     Min.  1st Qu.   Median     Mean  3rd Qu.     Max.     NA's
+#  -0.6855   3.0760   8.7030   9.9260  14.8400 168.1000     3120
+
+# Negative values?
+out.udel[pre_udel < 0, .N, by=.(rn, month)]
+out.udel[pre_udel < 0, pre_udel := 0]
+
+out.udel[is.na(pre_udel), .N, by=rn]
+#      rn   N
+# 1:   28 780
+# 2:   30 780
+# 3: 2731 780
+# 4: 2791 780
+
+# Extract monthly temperature
+tmp <- extract(temp, g2, fun=mean, na.rm=T, small=T)
+tmp <- data.table(rn=g2@data$rn, tmp)
+setnames(tmp, 2:781, format(tm[601:1380], "%Y-%m-%d"))
+tmp <- melt(tmp, id.vars=c("rn"), variable.name="month", value.name="temp_udel", variable.factor=F)
+tmp[, month := as.Date(month)]
+setkey(tmp, rn, month)
+setkey(out.udel, rn, month)
+out.udel$temp_udel <- tmp[out.udel][, temp_udel]
+
+summary(out.udel$temp_udel)
+#    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's
+#   7.375  21.950  24.250  24.050  26.370  33.830    3120
+
+# Impute 4 missing units by hand
+out.udel[is.na(temp_udel), .N, by=rn]
+#      rn   N
+# 1: 2731 780 => 18
+# 2: 2791 780 => 24
+# 3:   28 780 => 9
+# 4:   30 780 => 7
+
+# Use recodes from SPEI above
+bad <- c("235", "313", "132", "133", "134", "135", "30", "31", "28", "29", "43", "44",
+  "90", "94", "1351", "2271", "2721", "2731", "2741", "2751", "2761", "2771", "2781",
+  "2791", "2801", "2811", "260", "931", "58")
+
+impute <- c("241", "422", "91", "91", "91", "91", "91", "91", "131", "131", "131", "131",
+  "57", "96", "1821", "1141", "1981", "1141", "1141", "1141", "1981", "1141", "1141",
+  "1981", "1141", "1981", "280", "3100", "59")
+
+for (i in c(18, 24, 9, 7)) out.udel[rn==bad[i], `:=`(
+  pre_udel = out.udel[rn==impute[i], pre_udel],
+  temp_udel = out.udel[rn==impute[i], temp_udel]
+  )]
+
+# Verify
+summary(out.udel$pre_udel)
+summary(out.udel$temp_udel)
+
+# Convert cm/month to mm/month
+out.udel[, pre_udel := pre_udel*10]
+
+# Plot a sample month to PDF to check results
+tmp <- out.udel[month=="2014-01-01"]
+g2.dt <- data.table(g2@data)
+setkey(g2.dt, rn)
+setkey(tmp, rn)
+tmp <- g2.dt[tmp]
+tmp <- SpatialPolygonsDataFrame(g2, data.frame(tmp), match.ID="rn")
+
+tmap_mode("view")
+tm_shape(pre[[769]]) + tm_raster(n=10)
+tm_shape(temp[[769]]) + tm_raster(n=10)
+
+pdf("./out/2016.09/svyL2Maps-UDEL_2014-01.pdf")
+tmap_mode("plot")
+for (j in c("pre_udel", "temp_udel")) for (i in unique(g2.dt$svyCode)) print(
+  tm_shape(World) + tm_borders() +
+    tm_shape(tmp[tmp$svyCode==i,], is.master=T) +
+    tm_polygons(j, n=8, title=paste(i, j, "2014-Jan", sep="\n")) +
+    tm_style_grey()
+  )
+dev.off()
+# => looks ok
+
+# Export to STATA
+g2.dt <- data.table(g2@data)
+setkey(g2.dt, rn)
+setkey(out.udel, rn)
+out.udel <- g2.dt[out.udel]
+
+g2.lbl <- c("ISO3 code", "survey code",
+  "adm-1 code (in survey)", "admin-1 name (in survey)",
+  "adm-2 code (in survey, 0 is missing or not surveyed)", "admin-2 name (in survey)",
+  "print label", "shape id")
+
+lbl <- c("month", "precipitation (mm, UDEL)", "temperature (C, UDEL)")
+attr(out.udel, "var.labels") <- c(g2.lbl, lbl)
+write.dta(out.udel, "./out/2016.09/svyL2Maps-UDEL_1950-2014_monthly.dta",
+  convert.factors="string", version=12L)
+
+
+
+
+#####################################################################################
+## Table drought occurrences across districts 5 years prior to survey year
+#
+# A drought event is defined as a period in which the SPEI is continuously negative and
+# the SPEI reaches a value of −1.0 or less according to McKee et al. [5]. Drought starts
+# when the SPEI first falls below zero and ends with the positive SPEI value following a
+# value of −1.0 or less [5].
+# See e.g. https://www.researchgate.net/publication/275652967_Agricultural_drought_hazard_analysis_during_1980-2008_a_global_perspective
+# Also see suggestion from Max
+# http://stackoverflow.com/questions/38890034/using-data-table-to-summarize-monthly-sequences-count-specific-events
+
+out[svyCode %in% c("gha2005", "uga2005"), `:=`(svyYear=2005, svyYearPrior5=2000)]
+out[svyCode=="tza2007", `:=`(svyYear=2007, svyYearPrior5=2002)]
+out[svyCode=="tza2011", `:=`(svyYear=2011, svyYearPrior5=2006)]
+out[svyCode=="gha2012", `:=`(svyYear=2012, svyYearPrior5=2007)]
+out[svyCode=="uga2013", `:=`(svyYear=2013, svyYearPrior5=2008)]
+
+out[, `:=`(neg=(spei03 < 0), neg1=(spei03 <= -1))]
+out[year(month) %between% c(svyYearPrior5, svyYear),
+  runid := ifelse(neg, rleid(neg), NA)]
+out.evt <- out[!is.na(runid),
+  .(length=.N[any(neg1)], start=min(month), end=max(month)),
+  by=.(rn, runid)][!is.na(length)]
+
+resN <- out.evt[, .(nDroughts=.N), by=rn]
+resL <- out.evt[, .(droughtN=seq_len(.N), start, end), by=rn]
+
+tmp <- resL[, .(med_duration=median(difftime(end, start, units="weeks"), na.rm=T)), by=rn]
+setkey(tmp, rn)
+setkey(resN, rn)
+resN$med_duration <- tmp[resN][, med_duration]
+summary(as.numeric(resN$med_duration))
+#  Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
+# 0.000   8.429  12.860  12.950  17.430  47.710
+
+# Export
+setkey(out, rn)
+tmp <- unique(out)[, .SD, .SDcols=1:8]
+setkey(tmp, rn)
+setkey(resN, rn)
+resN <- resN[tmp]
+setcolorder(resN, c(4:10, 1, 2:3))
+setnames(resN, "nDroughts", "drought_n")
+
+# Convert difftime to numeric (weeks)
+resN[, med_duration := as.numeric(med_duration)]
+
+lbl <- c(
+  "number of drought events (below -1 SPEI03) 1990-2014",
+  "median duration of drought event (weeks)")
+
+attr(resN, "var.labels") <- c(g2.lbl, lbl)
+write.dta(resN, "./out/2016.09/svyL2Maps-SPEIbase.2.4_events.dta",
+  convert.factors="string", version=12L)
+
+
+# Map drought occurence
+tmp <- SpatialPolygonsDataFrame(g2, resN, match.ID="rn")
+pdf("./out/2016.09/svyL2Maps-SPEIbase.2.4_events.pdf")
+tmap_mode("plot")
+for (j in c("drought_n", "med_duration")) for (i in unique(g2.dt$svyCode)) print(
+  tm_shape(World) + tm_borders() +
+    tm_shape(tmp[tmp$svyCode==i,], is.master=T) +
+    tm_polygons(j, n=8, title=paste(i, j, sep="\n")) +
+    tm_style_grey()
+)
+dev.off()
+
+
 
 # Save workspace
 rm(i, j, x, r, tmp, id.bad, imp, bad, g2.dt, tza.imp, tza.bad, uga.imp, uga.bad,
