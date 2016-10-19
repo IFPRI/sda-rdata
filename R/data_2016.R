@@ -2223,8 +2223,8 @@ setnames(resN, "nDroughts", "drought_n")
 resN[, med_duration := as.numeric(med_duration)]
 
 lbl <- c(
-  "number of drought events (below -1 SPEI03) 1990-2014",
-  "median duration of drought event (weeks)")
+  "number of drought events (below -1 SPEI03) 5-year prior",
+  "median duration of drought event (weeks) 5-year prior")
 
 attr(resN, "var.labels") <- c(g2.lbl, lbl)
 write.dta(resN, "./out/2016.09/svyL2Maps-SPEIbase.2.4_events.dta",
