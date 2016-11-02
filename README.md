@@ -5,11 +5,12 @@ Current series include:
 * ACLED
 * CHIRPS v2
 * CRU_TS.3.22
-* CRUS_TS.3.23
+* CRU_TS.3.23
 * GPWv4
 * Landscan 2012
 * PDSI
 * SPEIbase v2.4
 * SRTM
+* SPAM2005V3r0
 * UDEL, University of Delaware Precipitation and Tempetarure
 * WorldClim
