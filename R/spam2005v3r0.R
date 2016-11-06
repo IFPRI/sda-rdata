@@ -204,6 +204,7 @@ spamPNG <- function(var, pal="YlOrRd", file=paste0("./", var, ".png"), ...) {
   # Cut to 98 percentile
   q98 <- quantile(r, probs=.98, na.rm=T)
   r[r > q98] <- q98
+  r[r <= 0] <- NA
 
   # Tmap it
   m <- tm_shape(World) +
@@ -217,33 +218,33 @@ spamPNG <- function(var, pal="YlOrRd", file=paste0("./", var, ".png"), ...) {
     tm_shape(World) + tm_borders("grey70", lwd=.2) +
 
     tm_credits(str_wrap(vi[var, varDesc], 80),
-      position=c(.5, 1.04), just=c("center", "top"), size=.55) +
+      position=c("center", "top"), just=c("center", "top"), size=.5) +
     tm_logo("./SPAM/aux/logo.png", height=2,
-      position=c(.5, .5), just=c("center", "center")) +
+      position=c("center", "top"), just=c("center", "center")) +
     tm_credits(str_wrap(cite, 116),
-      position=c(.5, .08), just=c("center", "bottom"), size=.45) +
+      position=c(.5, .08), just=c("center", "bottom"), size=.4) +
 
     tm_layout(
+      frame=F,
       title=vi[var, varTitle],
       title.size=.7,
       title.snap.to.legend=F,
       title.position=c("center", "top"),
+      #title.color="grey05",
       bg.color="#AEDFE5",
       outer.bg.color="white",
       earth.boundary=c(-180, 180, -70, 90),
       earth.boundary.color="white",
       earth.boundary.lwd=.4,
       space.color="white",
-      frame=F,
-      legend.position=c(.1, .2),
+      legend.position=c(.14, .12),
       legend.text.size=.45,
-      legend.title.size=.6,
+      legend.title.size=.55,
+      legend.text.color="grey70",
       attr.outside=T,
-      #title.color="grey05",
+      attr.outside.position="bottom",
       attr.color="grey20",
-      legend.text.color="grey40",
-      inner.margins=c(.04, .01, .08, .01),
-      asp=6/3.3)
+      inner.margins=c(.07, .01, .14, .01))
 
   save_tmap(m, file, width=6, height=4, units="in", ...)
   return(file)
@@ -361,21 +362,92 @@ spamDP <- function(var, format=c("tif", "nc", "csv"), path="./", prefix="spam200
 
 
 #####################################################################################
+# 2016.11.03 Modify Metadata
+#####################################################################################
+# Ulrike prefers to append "T" to technologies, so modify `spam` and `vi`
+# accordingly
+
+load("./SPAM/2005v3r0/rds/SPAM2005V3r0_global.rda")
+load("./SPAM/2005v3r0/rds/vi.rda")
+
+# File preparation
+var <- c("H", "A", "P", "Y", "V")
+tech <- c("A", "H", "I", "L", "R", "S")
+
+# Fix food/nonfood var codes
+vi[, var := varCode]
+vi[, var := str_replace(var, "_nf_", "_nfood_")]
+vi[, var := str_replace(var, "_nonf_", "_nfood_")]
+vi[, var := str_replace(var, "_nonf", "_nfood")]
+vi[, var := str_replace(var, "_fo_", "_food_")]
+vi[, var := str_replace(var, "_cr_", "_crop_")]
+
+# Verify
+vi[var %like% "area", var]
+vi[var %like% "food", var]
+
+for (i in tolower(var)) for (j in tolower(tech)) vi[,
+  var := str_replace(var, paste0("_", i, "_", j),  paste0("_", i, "_t", j))]
+
+# Verify
+vi[var %like% "_a_ta", var]
+vi[var %like% "_a_a", var]
+
+for (j in tolower(tech)) vi[,
+  var := str_replace(var, paste0("food_ar_", j),  paste0("food_ar_t", j))]
+
+for (j in tolower(tech)) vi[!var %like% "_ar",
+  var := str_replace(var, paste0("food_", j),  paste0("food_t", j))]
+
+# Verify
+vi[var %like% "nf", var]
+
+# Also add `_ta`
+old <- c("area_food", "vp_food", "vp_food_ar", "area_nfood", "vp_nfood", "vp_nfood_ar")
+new <- c("area_food_ta", "vp_food_ta", "vp_food_ar_ta", "area_nfood_ta", "vp_nfood_ta", "vp_nfood_ar_ta")
+for (i in 1:6) vi[var==old[i], var := new[i]]
+
+setnames(spam, vi$varCode, vi$var)
+vi[, varCode := var]
+vi[, var := NULL]
+setkey(vi, cat1, cat2, cat3, varCode)
+
+save(spam, file="./SPAM/2005v3r0/rds/SPAM2005V3r0_global.rda", compress=T)
+save(vi, file="./SPAM/2005v3r0/rds/vi.rda")
+
+
+
+#####################################################################################
 # Package SPAM 2005 V3r0
 #####################################################################################
 load("./SPAM/2005v3r0/rds/SPAM2005V3r0_global.rda")
 load("./SPAM/2005v3r0/rds/vi.rda")
 
-# Generate all PNG
+# Clean up output dirs
+unlink("./SPAM/2005v3r0/png/*")
+unlink("./SPAM/2005v3r0/tif/*")
+unlink("./SPAM/2005v3r0/nc/*")
+unlink("./SPAM/2005v3r0/csv/*")
+
+
+# Generate all packages
 for (i in vi[genRaster==T &
     cat3 %in% c("all systems", "rainfed system", "irrigated system"), varCode]) {
 
-  # Choose color palette
+  # Choose color palettes
   pal <- switch(vi[i, cat3],
     `all systems`="YlOrBr",
     `irrigated system`="GnBu",
     `rainfed system`="YlOrRd",
     `subsistence system`="BuPu")
+
+  # Could also try CET palettes instead of Brewer
+  # pal <- switch(vi[i, cat3],
+  #   `all systems`=rev(pal.cet[["linear_green"]]),
+  #   `irrigated system`=rev(pal.cet[["linear_blue"]]),
+  #   `rainfed system`=rev(pal.cet[["linear_gow"]]),
+  #   `subsistence system`=rev(pal.cet[["linear_kryw"]]))
+  # pal <- c("#ffffff", pal)
 
   # Plot
   spamPNG(i, pal,
@@ -389,8 +461,18 @@ for (i in vi[genRaster==T &
 
 
 
+#####################################################################################
+# Helper - Generate PNG with sp::plot instead of tmap
+# Inspired by E. Pebesma http://r-spatial.org/r/2016/03/08/plotting-spatial-grids.html
+
+
+
+
+
+
+
 # Save all
-rm(tmp, i, j, var, spam, World, pal, m, grid.dt)
+rm(tmp, i, j, var, spam, World, pal, m, grid.dt, old , new)
 save.image("./SPAM/tmp/spam.RData")
 
 
