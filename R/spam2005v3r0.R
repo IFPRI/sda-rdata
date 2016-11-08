@@ -203,8 +203,10 @@ spamPNG <- function(var, pal="YlOrRd", file=paste0("./", var, ".png"), ...) {
 
   # Cut to 98 percentile
   q98 <- quantile(r, probs=.98, na.rm=T)
-  r[r > q98] <- q98
-  r[r <= 0] <- NA
+  if (q98 > 1) {
+    r[r > q98] <- q98
+    r[r <= 0] <- NA
+  }
 
   # Tmap it
   m <- tm_shape(World) +
@@ -249,6 +251,13 @@ spamPNG <- function(var, pal="YlOrRd", file=paste0("./", var, ".png"), ...) {
   save_tmap(m, file, width=6, height=4, units="in", ...)
   return(file)
 }
+
+
+#####################################################################################
+# Helper - Generate PNG with sp::plot instead of tmap
+# Inspired by E. Pebesma http://r-spatial.org/r/2016/03/08/plotting-spatial-grids.html
+
+
 
 
 #####################################################################################
@@ -340,7 +349,7 @@ spamDP <- function(var, format=c("tif", "nc", "csv"), path="./", prefix="spam200
     # TIF
     tif = writeRaster(r, paste0("./tmp/", prefix, var, ".tif"), overwrite=T,
       options=c("INTERLEAVE=BAND", "TFW=YES", "ESRI_XML_PAM=YES")),
-    # netCDF
+    # netCDF (note, cannot find a way to write projection to NetCDF)
     nc = writeRaster(r, paste0("./tmp/", prefix, var, ".nc"), overwrite=T,
       xname="lon", yname="lat",
       varname=vi[var, varCode], varunit=vi[var, unit], longname=vi[var, varTitle])
@@ -405,11 +414,41 @@ vi[var %like% "nf", var]
 # Also add `_ta`
 old <- c("area_food", "vp_food", "vp_food_ar", "area_nfood", "vp_nfood", "vp_nfood_ar")
 new <- c("area_food_ta", "vp_food_ta", "vp_food_ar_ta", "area_nfood_ta", "vp_nfood_ta", "vp_nfood_ar_ta")
-for (i in 1:6) vi[var==old[i], var := new[i]]
 
-setnames(spam, vi$varCode, vi$var)
-vi[, varCode := var]
-vi[, var := NULL]
+setnames(spam, old, new)
+for (i in 1:6) vi[varCode==old[i], varCode := new[i]]
+setkey(vi, cat1, cat2, cat3, varCode)
+
+# Make vp and crop aggregates consistent with above rules (??)
+vi[varCode %like% "vp", varCode]
+vi[varCode %like% "area", varCode]
+
+old <- c(
+  "vp_crop"        ,"vp_crop_ar"     ,"vp_crop_ar_h"   ,"vp_crop_ar_i"   ,"vp_crop_ar_l"   ,"vp_crop_ar_r",
+  "vp_crop_ar_s"   ,"vp_crop_h"      ,"vp_crop_i"      ,"vp_crop_l"      ,"vp_crop_r"      ,"vp_crop_s",
+  "vp_food_ar_ta"  ,"vp_food_ar_th"  ,"vp_food_ar_ti"  ,"vp_food_ar_tl"  ,"vp_food_ar_tr"  ,"vp_food_ar_ts",
+  "vp_food_ta"     ,"vp_food_th"     ,"vp_food_ti"     ,"vp_food_tl"     ,"vp_food_tr"     ,"vp_food_ts",
+  "vp_nfood_ar_ta" ,"vp_nfood_ar_th" ,"vp_nfood_ar_ti" ,"vp_nfood_ar_tl" ,"vp_nfood_ar_tr" ,"vp_nfood_ar_ts",
+  "vp_nfood_ta"    ,"vp_nfood_th"    ,"vp_nfood_ti"    ,"vp_nfood_tl"    ,"vp_nfood_tr"    ,"vp_nfood_ts",
+  "area_crop"     ,"area_crop_h"   ,"area_crop_i"   ,"area_crop_l"   ,"area_crop_r"   ,"area_crop_s",
+  "area_food_ta"  ,"area_food_th"  ,"area_food_ti"  ,"area_food_tl"  ,"area_food_tr"  ,"area_food_ts",
+  "area_nfood_ta" ,"area_nfood_th" ,"area_nfood_ti" ,"area_nfood_tl" ,"area_nfood_tr" ,"area_nfood_ts"
+)
+
+new <- c(
+  "crop_v_ta"        ,"crop_var_ta"     ,"crop_var_th"   ,"crop_var_ti"   ,"crop_var_tl"   ,"crop_var_tr",
+  "crop_var_ts"   ,"crop_v_th"      ,"crop_v_ti"      ,"crop_v_tl"      ,"crop_v_tr"      ,"crop_v_ts",
+  "food_var_ta"  ,"food_var_th"  ,"food_var_ti"  ,"food_var_tl"  ,"food_var_tr"  ,"food_var_ts",
+  "food_v_ta"     ,"food_v_th"     ,"food_v_ti"     ,"food_v_tl"     ,"food_v_tr"     ,"food_v_ts",
+  "nfood_var_ta" ,"nfood_var_th" ,"nfood_var_ti" ,"nfood_var_tl" ,"nfood_var_tr" ,"nfood_var_ts",
+  "nfood_v_ta"    ,"nfood_v_th"    ,"nfood_v_ti"    ,"nfood_v_tl"    ,"nfood_v_tr"    ,"nfood_v_ts",
+  "crop_h_ta"     ,"crop_h_th"   ,"crop_h_ti"   ,"crop_h_tl"   ,"crop_h_tr"   ,"crop_h_ts",
+  "food_h_ta"  ,"food_h_th"  ,"food_h_ti"  ,"food_h_tl"  ,"food_h_tr"  ,"food_h_ts",
+  "nfood_h_ta" ,"nfood_h_th" ,"nfood_h_ti" ,"nfood_h_tl" ,"nfood_h_tr" ,"nfood_h_ts"
+)
+
+setnames(spam, old, new)
+for (i in 1:54) vi[varCode==old[i], varCode := new[i]]
 setkey(vi, cat1, cat2, cat3, varCode)
 
 save(spam, file="./SPAM/2005v3r0/rds/SPAM2005V3r0_global.rda", compress=T)
@@ -425,14 +464,15 @@ load("./SPAM/2005v3r0/rds/vi.rda")
 
 # Clean up output dirs
 unlink("./SPAM/2005v3r0/png/*")
-unlink("./SPAM/2005v3r0/tif/*")
+unlink("./SPAM/2005v3r0/tiff/*")
 unlink("./SPAM/2005v3r0/nc/*")
 unlink("./SPAM/2005v3r0/csv/*")
 
-
 # Generate all packages
-for (i in vi[genRaster==T &
-    cat3 %in% c("all systems", "rainfed system", "irrigated system"), varCode]) {
+vars <- vi[genRaster==T & cat3 %in% c("all systems", "rainfed system", "irrigated system"), varCode]
+vars <- vi[varCode %like% "crop_" | varCode %like% "food_" | varCode %like% "nfood_", unique(varCode)]
+
+for (i in vars) {
 
   # Choose color palettes
   pal <- switch(vi[i, cat3],
@@ -453,7 +493,7 @@ for (i in vi[genRaster==T &
   spamPNG(i, pal,
     file=paste0("./SPAM/2005v3r0/png/spam2005v3r0_", i, ".png"), dpi=600)
 
-  # Generate all TIF, NC, CSV
+  # Generate TIF, NC, CSV
   spamDP(i, "csv", "./SPAM/2005v3r0/csv/")
   spamDP(i, "tif", "./SPAM/2005v3r0/tiff/")
   spamDP(i, "nc", "./SPAM/2005v3r0/nc/")
@@ -461,18 +501,7 @@ for (i in vi[genRaster==T &
 
 
 
-#####################################################################################
-# Helper - Generate PNG with sp::plot instead of tmap
-# Inspired by E. Pebesma http://r-spatial.org/r/2016/03/08/plotting-spatial-grids.html
-
-
-
-
-
-
 
 # Save all
 rm(tmp, i, j, var, spam, World, pal, m, grid.dt, old , new)
 save.image("./SPAM/tmp/spam.RData")
-
-
