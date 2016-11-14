@@ -2276,3 +2276,45 @@ tmp <- povmap@data[povmap$svyCode=="tza2012",]
 tmp <- g2@data[g2$svyCode=="tza2007",]
 tmp <- g2@data[g2$svyCode=="tza2011",]
 
+
+#####################################################################################
+# 2016.11.12 Verify what precipitation data we have for MDG
+#####################################################################################
+# Ad-hoc request from WB
+
+setwd("~/Projects/hc-data")
+load("./out/2016.05/svyMaps_r16.05.RData")
+
+knitr::kable(l2.udel[ISO3=="MDG", .N, keyby=eval(names(l2.udel)[3:7])])
+knitr::kable(l2.map.20.dt[ISO3=="MDG", .N, keyby=eval(names(l2.new.dt)[2:6])])
+
+# |svyCode | svyL1Cd|svyL1Nm              | svyL2Cd|svyL2Nm |  N|
+# |:-------|-------:|:--------------------|-------:|:-------|--:|
+# |mdg2005 |       1|DIANA                |       0|NA      |  1|
+# |mdg2005 |       2|SAVA                 |       0|NA      |  1|
+# |mdg2005 |       3|ITASY                |       0|NA      |  1|
+# |mdg2005 |       4|ANALAMANGA           |       0|NA      |  1|
+# |mdg2005 |       5|VAKINANKARATRA       |       0|NA      |  1|
+# |mdg2005 |       6|BONGOLAVA            |       0|NA      |  1|
+# |mdg2005 |       7|SOFIA                |       0|NA      |  1|
+# |mdg2005 |       8|BOENY                |       0|NA      |  1|
+# |mdg2005 |       9|BETSIBOKA            |       0|NA      |  1|
+# |mdg2005 |      10|MELAKY               |       0|NA      |  1|
+# |mdg2005 |      11|ALAOTRA-MANGORO      |       0|NA      |  1|
+# |mdg2005 |      12|ATSINANANA           |       0|NA      |  1|
+# |mdg2005 |      13|ANALANJIROFO         |       0|NA      |  1|
+# |mdg2005 |      14|AMORON'I MANIA       |       0|NA      |  1|
+# |mdg2005 |      15|MAHATSIATRA AMBONY   |       0|NA      |  1|
+# |mdg2005 |      16|VATOVAVY- FITOVINANY |       0|NA      |  1|
+# |mdg2005 |      17|ATSIMO-ATSINANANA    |       0|NA      |  1|
+# |mdg2005 |      18|IHOROMBE             |       0|NA      |  1|
+# |mdg2005 |      19|MENABE               |       0|NA      |  1|
+# |mdg2005 |      20|ATSIMO-ANDREFANA     |       0|NA      |  1|
+# |mdg2005 |      21|ANDROY               |       0|NA      |  1|
+# |mdg2005 |      22|ANOSY                |       0|NA      |  1|
+
+# => MDG is only at region level
+
+l2.map.dt <- data.table(l2.map@data)
+knitr::kable(l2.map.dt[ISO3=="MDG", .N, keyby=eval(names(l2.udel)[3:7])])
+# => same as above

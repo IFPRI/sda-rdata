@@ -719,7 +719,7 @@ m <- tm_shape(gpw.urb2.m) +
   tm_credits("Source: GPWv4. \nIFPRI/HarvestChoice, 2016.") +
   tm_layout(legend.position=c("LEFT", "BOTTOM"),
     basemaps=c("Thunderforest.TransportDark", "Esri.WorldGrayCanvas")) +
-  tm_view(alpha=0.9, popup.all.data=T, bubble.size.fixed=T)
+  tm_view(alpha=0.9, popup.all.data=T, dot.size.fixed=T)
 
 m <- tmap_leaflet(m)
 

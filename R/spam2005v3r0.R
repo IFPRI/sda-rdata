@@ -15,7 +15,183 @@ library(tmap)
 setwd("~/Projects/hc-data")
 load("./SPAM/tmp/spam.RData")
 
-# File preparation
+#####################################################################################
+# Helper - Generate PNG (no Data Packaging needed)
+spamPNG <- function(var, pal="YlOrRd", file=paste0("./", var, ".png"), ...) {
+
+  # Load country boundaries
+  if (!"World" %in% ls()) data(World)
+
+  # Convert to raster
+  r <- SpatialPixelsDataFrame(spam[, .(X, Y)], data.frame(spam[, .SD, .SDcols=var]),
+    proj4string=CRS("+init=epsg:4326"))
+  r <- raster(r)
+
+  # Cut to 98 percentile
+  q98 <- quantile(r, probs=.98, na.rm=T)
+  if (q98 > 1) {
+    r[r > q98] <- q98
+    r[r <= 0] <- NA
+  }
+
+  # Tmap it
+  m <- tm_shape(World) +
+    tm_fill("white", border.col="grey70", lwd=.2) +
+    tm_grid(n.x=7, n.y=6, projection="longlat", lwd=.1, col="grey70", labels.size=0) +
+    tm_shape(r, is.master=T, projection="eck4") +
+
+    # Using `cont` style not always best
+    tm_raster(title=vi[var, paste(unit, 2005, sep=", ")],
+      n=9, style="cont", palette=pal) +
+    tm_shape(World) + tm_borders("grey70", lwd=.2) +
+
+    tm_credits(str_wrap(vi[var, varDesc], 90),
+      position=c("center", "top"), just=c("center", "top"), size=.5) +
+    tm_logo("./SPAM/aux/spam-logo.png", height=2,
+      position=c("center", "top"), just=c("center", "center")) +
+    tm_credits(str_wrap(cite, 116),
+      position=c(.5, .08), just=c("center", "bottom"), size=.4) +
+
+    tm_layout(
+      frame=F,
+      title=vi[var, varTitle],
+      title.size=.7,
+      title.snap.to.legend=F,
+      title.position=c("center", "top"),
+      #title.color="grey05",
+      bg.color="#AEDFE5",
+      outer.bg.color="white",
+      earth.boundary=c(-180, 180, -70, 90),
+      earth.boundary.color="white",
+      earth.boundary.lwd=.4,
+      space.color="white",
+      legend.position=c(.14, .12),
+      legend.text.size=.45,
+      legend.title.size=.55,
+      legend.text.color="grey70",
+      attr.outside=T,
+      attr.outside.position="bottom",
+      attr.color="grey20",
+      inner.margins=c(.07, .01, .14, .01))
+
+  save_tmap(m, file, width=6, height=4, units="in", ...)
+  return(file)
+}
+
+
+#####################################################################################
+# Helper - Generate PNG with sp::plot instead of tmap
+# Inspired by E. Pebesma http://r-spatial.org/r/2016/03/08/plotting-spatial-grids.html
+
+
+
+
+#####################################################################################
+# Helper - Generate Data Package auxiliary files
+spamAux <- function(var, format=c("csv", "tif", "nc"), outdir="./") {
+
+  # Auxiliary file names
+  d <- paste0(outdir, c("META.csv", "datapackage.json"))
+
+  # Retrieve metadata records
+  setkey(vi, varCode)
+  dt <- vi[c(g, var)]
+
+  # Write to `META.csv`
+  write.csv(dt, d[1], row.names=F, na="")
+
+  # Write to `datapackage.json`
+  setkey(dt, varCode)
+  dt <- dt[var]
+  j <- list(
+    name="IFPRI-SPAM-GLOBAL-V3r0",
+    datapackage_version="1.0-beta-2",
+    title="Spatial Production Allocation Model (SPAM) 2005 Version 3.0",
+    description="The Spatial Production Allocation Model is an effective way to map detailed patterns of crop production using much less specific input data.",
+    version="V3r0, Sep. 2016",
+    last_updated=Sys.Date(),
+    homepage="http://mapspam.info/",
+    image="http://mapspam.info/wp-content/themes/mapspam/assets/img/images/logo_main_2x.png",
+    contributors=list(
+      list(name="Liang You", email="l.you@cgiar.org"),
+      list(name="Ulrike Wood-Sichra", email="u.wood-sichra@cgiar.org"),
+      list(name="Steffen Fritz", email="fritz@iiasa.ac.at"),
+      list(name="Zhe Guo", email="z.guo@cgiar.org"),
+      list(name="Linda See", email="see@iiasa.ac.at"),
+      list(name="Jawoo Koo", email="j.koo@cgiar.org")),
+    sources=list(
+      name="IFPRI/SPAM",
+      web="http://mapspam.info/",
+      email="info@mapspam.info"),
+    keywords=c("agriculture", "farming", "production", "yield", "productivity", "climate change",
+      "maize", "wheat", "cassava", "fruits", "vegetables", "pulses", "cereals", "legumes"),
+    license=list(type="ODC-BY-1.0", url="http://opendatacommons.org/licenses/by"),
+    publishers="International Food Policy Research Institute (IFPRI)",
+    resources=list(
+      name=dt[, varCode],
+      title=dt[, varTitle],
+      description=dt[, varDesc],
+      # This assumes that data files have been generated in the same `outdir`
+      path=setdiff(list.files(outdir, paste0("^.*\\.", format, "$")),
+        c("META.csv", "README.md", "README.html")),
+      format=switch(format, csv="CSV", nc="netCDF", tif="GeoTIFF"),
+      mediatype=switch(format,
+        csv="text/csv",
+        nc="application/x-netcdf",
+        rds="application/octet-stream",
+        tif="image/tiff"))
+  )
+
+  write(jsonlite::toJSON(j, dataframe="rows", pretty=T, auto_unbox=T), file=d[2])
+  return(d)
+}
+
+
+#####################################################################################
+# Helper - Generate complete Data Packages (ZIP)
+spamDP <- function(var, format=c("tif", "nc", "csv"), path="./", prefix="spam2005v3r0_") {
+
+  if (format=="csv") {
+    # Pull all columns
+    r <- spam[if(!missing(region)) ADM_REG==region, .SD, .SDcols=c(g, var)]
+  } else {
+    # Convert to raster
+    r <- SpatialPixelsDataFrame(spam[, .(X, Y)], data.frame(spam[, .SD, .SDcols=var]),
+      proj4string=CRS("+init=epsg:4326"))
+    r <- raster(r)
+  }
+
+  switch(format,
+    # CSV
+    csv = write.csv(r, paste0("./tmp/", prefix, var, ".csv")),
+    # TIF
+    tif = writeRaster(r, paste0("./tmp/", prefix, var, ".tif"), overwrite=T,
+      options=c("INTERLEAVE=BAND", "TFW=YES", "ESRI_XML_PAM=YES")),
+    # netCDF (projection is written but not read in QGIS)
+    nc = writeRaster(r, paste0("./tmp/", prefix, var, ".nc"), overwrite=T,
+      xname="lon", yname="lat", zname="crop",
+      varname=vi[var, varCode], varunit=vi[var, unit], longname=vi[var, varTitle],
+      options=c("ESRI_XML_PAM=YES"))
+  )
+
+  # Make ZIP packages
+  f <- switch(format,
+    csv=paste0(path, prefix, var, ".csv.zip"),
+    tif=paste0(path, prefix, var, ".tif.zip"),
+    nc=paste0(path, prefix, var, ".nc.zip"))
+
+  spamAux(var, format, "./tmp/")
+
+  # Also add Readme and License.pdf
+  aux <- c("./SPAM/aux/License.pdf", "./SPAM/aux/README.md", "./SPAM/aux/README.pdf")
+  file.copy(aux, "./tmp/")
+  zip(f, list.files("./tmp/", full.names=T), flags="-9Xjm", zip="zip")
+  return(f)
+}
+
+
+#####################################################################################
+# Load SPAM variables from CSV
 var <- c("H", "A", "P", "Y", "V")
 tech <- c("A", "H", "I", "L", "R", "S")
 
@@ -100,7 +276,7 @@ for (i in var) for (j in tech) {
 
 rm(spam)
 
-# In fact we should be able to combine all vars into 1 simple RDA file
+# In fact we should be able to combine all vars into 1 simple .rda file
 r <- list.files("./SPAM/2005v3r0/rds", full.names=T)
 r <- lapply(r, readRDS)
 cell5m <- lapply(r, `[[`, "CELL5M")
@@ -139,7 +315,7 @@ save(spam, file="./SPAM/2005v3r0/rds/SPAM2005V3r0_global.rda", compress=T)
 
 
 #####################################################################################
-# also complete and save metadata table `vi`
+# Complete and save metadata table `vi`
 # Best to use the same metadata schema as CELL5M (?) to make APIs compatible
 # Export and fix metadata in MSExcel
 write.csv(vi, "./SPAM/2005v3r0/rds/vi.csv", na="", row.names=F)
@@ -189,186 +365,6 @@ g <- c("CELL5M", "PROD_LEVEL", "ISO3", "ADM0_NAME", "ADM1_NAME", "ADM2_NAME", "X
 cite <- 'You, L., U. Wood-Sichra, S. Fritz, Z. Guo, L. See, and J. Koo. 2016. "Spatial Production Allocation Model (SPAM) 2005 v3.0", September 2016. Available from http://mapspam.info/.'
 
 
-#####################################################################################
-# Helper - Generate PNG (no Data Packaging needed)
-spamPNG <- function(var, pal="YlOrRd", file=paste0("./", var, ".png"), ...) {
-
-  # Load country boundaries
-  if (!"World" %in% ls()) data(World)
-
-  # Convert to raster
-  r <- SpatialPixelsDataFrame(spam[, .(X, Y)], data.frame(spam[, .SD, .SDcols=var]),
-    proj4string=CRS("+init=epsg:4326"))
-  r <- raster(r)
-
-  # Cut to 98 percentile
-  q98 <- quantile(r, probs=.98, na.rm=T)
-  if (q98 > 1) {
-    r[r > q98] <- q98
-    r[r <= 0] <- NA
-  }
-
-  # Tmap it
-  m <- tm_shape(World) +
-    tm_fill("white", border.col="grey70", lwd=.2) +
-    tm_grid(n.x=7, n.y=6, projection="longlat", lwd=.1, col="grey70", labels.size=0) +
-    tm_shape(r, is.master=T, projection="eck4") +
-
-    # Using `cont` style not always best
-    tm_raster(title=vi[var, paste(unit, 2005, sep=", ")],
-      n=9, style="cont", palette=pal) +
-    tm_shape(World) + tm_borders("grey70", lwd=.2) +
-
-    tm_credits(str_wrap(vi[var, varDesc], 80),
-      position=c("center", "top"), just=c("center", "top"), size=.5) +
-    tm_logo("./SPAM/aux/logo.png", height=2,
-      position=c("center", "top"), just=c("center", "center")) +
-    tm_credits(str_wrap(cite, 116),
-      position=c(.5, .08), just=c("center", "bottom"), size=.4) +
-
-    tm_layout(
-      frame=F,
-      title=vi[var, varTitle],
-      title.size=.7,
-      title.snap.to.legend=F,
-      title.position=c("center", "top"),
-      #title.color="grey05",
-      bg.color="#AEDFE5",
-      outer.bg.color="white",
-      earth.boundary=c(-180, 180, -70, 90),
-      earth.boundary.color="white",
-      earth.boundary.lwd=.4,
-      space.color="white",
-      legend.position=c(.14, .12),
-      legend.text.size=.45,
-      legend.title.size=.55,
-      legend.text.color="grey70",
-      attr.outside=T,
-      attr.outside.position="bottom",
-      attr.color="grey20",
-      inner.margins=c(.07, .01, .14, .01))
-
-  save_tmap(m, file, width=6, height=4, units="in", ...)
-  return(file)
-}
-
-
-#####################################################################################
-# Helper - Generate PNG with sp::plot instead of tmap
-# Inspired by E. Pebesma http://r-spatial.org/r/2016/03/08/plotting-spatial-grids.html
-
-
-
-
-#####################################################################################
-# Helper - Generate Data Package auxiliary files
-spamAux <- function(var, format=c("csv", "tif", "nc"), outdir="./") {
-
-  # Auxiliary file names
-  d <- paste0(outdir, c("META.csv", "README.md", "README.html", "datapackage.json"))
-
-  # Retrieve metadata records
-  setkey(vi, varCode)
-  dt <- vi[c(g, var)]
-
-  # Write to `META.csv`
-  write.csv(dt, d[1], row.names=F, na="")
-
-  # Write to `README.md`
-  r <- readLines("/home/projects/hc-data/SPAM/aux/README.md")
-  r <- gsub("$date$", Sys.Date(), r, fixed=T)
-  write(r, d[2])
-
-  # Knit to `README.html`
-  rmarkdown::render(d[2])
-
-  # Write to `datapackage.json`
-  setkey(dt, varCode)
-  dt <- dt[var]
-  j <- list(
-    name="IFPRI-SPAM-GLOBAL-V3r0",
-    datapackage_version="1.0-beta-2",
-    title="Spatial Production Allocation Model (SPAM) 2005 Version 3.0",
-    description="The Spatial Production Allocation Model is an effective way to map detailed patterns of crop production using much less specific input data.",
-    version="V3r0, Sep. 2016",
-    last_updated=Sys.Date(),
-    homepage="http://mapspam.info/",
-    image="http://mapspam.info/wp-content/themes/mapspam/assets/img/images/logo_main_2x.png",
-    contributors=list(
-      list(name="Liang You", email="l.you@cgiar.org"),
-      list(name="Ulrike Wood-Sichra", email="u.wood-sichra@cgiar.org"),
-      list(name="Steffen Fritz", email="fritz@iiasa.ac.at"),
-      list(name="Zhe Guo", email="z.guo@cgiar.org"),
-      list(name="Linda See", email="see@iiasa.ac.at"),
-      list(name="Jawoo Koo", email="j.koo@cgiar.org")),
-    sources=list(
-      name="IFPRI/SPAM",
-      web="http://mapspam.info/",
-      email="info@mapspam.info"),
-    keywords=c("agriculture", "farming", "production", "yield", "productivity", "climate change",
-      "maize", "wheat", "cassava", "fruits", "vegetables", "pulses", "cereals", "legumes"),
-    license=list(type="ODC-BY-1.0", url="http://opendatacommons.org/licenses/by"),
-    publishers="International Food Policy Research Institute (IFPRI)",
-    resources=list(
-      name=dt[, varCode],
-      title=dt[, varTitle],
-      description=dt[, varDesc],
-      # This assumes that data files have been generated in the same `outdir`
-      path=setdiff(list.files(outdir, paste0("^.*\\.", format, "$")),
-        c("META.csv", "README.md", "README.html")),
-      format=switch(format, csv="CSV", nc="netCDF", tif="GeoTIFF"),
-      mediatype=switch(format,
-        csv="text/csv",
-        nc="application/x-netcdf",
-        rds="application/octet-stream",
-        tif="image/tiff"))
-  )
-
-  write(jsonlite::toJSON(j, dataframe="rows", pretty=T, auto_unbox=T), file=d[4])
-  return(d)
-}
-
-
-#####################################################################################
-# Helper - Generate complete Data Packages (ZIP)
-spamDP <- function(var, format=c("tif", "nc", "csv"), path="./", prefix="spam2005v3r0_") {
-
-  if (format=="csv") {
-    # Pull all columns
-    r <- spam[, .SD, .SDcols=c(g, var)]
-  } else {
-    # Convert to raster
-    r <- SpatialPixelsDataFrame(spam[, .(X, Y)], data.frame(spam[, .SD, .SDcols=var]),
-      proj4string=CRS("+init=epsg:4326"))
-    r <- raster(r)
-  }
-
-  switch(format,
-    # CSV
-    csv = write.csv(r, paste0("./tmp/", prefix, var, ".csv")),
-    # TIF
-    tif = writeRaster(r, paste0("./tmp/", prefix, var, ".tif"), overwrite=T,
-      options=c("INTERLEAVE=BAND", "TFW=YES", "ESRI_XML_PAM=YES")),
-    # netCDF (note, cannot find a way to write projection to NetCDF)
-    nc = writeRaster(r, paste0("./tmp/", prefix, var, ".nc"), overwrite=T,
-      xname="lon", yname="lat",
-      varname=vi[var, varCode], varunit=vi[var, unit], longname=vi[var, varTitle])
-  )
-
-  # Make ZIP packages
-  f <- switch(format,
-    csv=paste0(path, prefix, var, ".csv.zip"),
-    tif=paste0(path, prefix, var, ".tif.zip"),
-    nc=paste0(path, prefix, var, ".nc.zip"))
-
-  spamAux(var, format, "./tmp/")
-
-  # Also add License.pdf
-  file.copy("./SPAM/aux/License.pdf", "./tmp/License.pdf")
-  zip(f, list.files("./tmp/", full.names=T), flags="-9Xjm", zip="zip")
-  return(f)
-}
-
 
 #####################################################################################
 # 2016.11.03 Modify Metadata
@@ -415,13 +411,11 @@ vi[var %like% "nf", var]
 old <- c("area_food", "vp_food", "vp_food_ar", "area_nfood", "vp_nfood", "vp_nfood_ar")
 new <- c("area_food_ta", "vp_food_ta", "vp_food_ar_ta", "area_nfood_ta", "vp_nfood_ta", "vp_nfood_ar_ta")
 
-setnames(spam, old, new)
-for (i in 1:6) vi[varCode==old[i], varCode := new[i]]
-setkey(vi, cat1, cat2, cat3, varCode)
+for (i in 1:6) vi[var==old[i], var := new[i]]
 
 # Make vp and crop aggregates consistent with above rules (??)
-vi[varCode %like% "vp", varCode]
-vi[varCode %like% "area", varCode]
+vi[var %like% "vp", var]
+vi[var %like% "area", var]
 
 old <- c(
   "vp_crop"        ,"vp_crop_ar"     ,"vp_crop_ar_h"   ,"vp_crop_ar_i"   ,"vp_crop_ar_l"   ,"vp_crop_ar_r",
@@ -447,9 +441,45 @@ new <- c(
   "nfood_h_ta" ,"nfood_h_th" ,"nfood_h_ti" ,"nfood_h_tl" ,"nfood_h_tr" ,"nfood_h_ts"
 )
 
-setnames(spam, old, new)
-for (i in 1:54) vi[varCode==old[i], varCode := new[i]]
+for (i in 1:54) vi[var==old[i], var := new[i]]
+
+# Verify
+vi[var %like% "_v_", var]
+vi[var %like% "_var_", var]
+
+setnames(spam, vi$varCode, vi$var)
 setkey(vi, cat1, cat2, cat3, varCode)
+vi[, varCode := var]
+vi[, var := NULL]
+
+names(spam)[!names(spam) %in% vi$varCode]
+# character(0)
+
+vi[!varCode %in% names(spam), varCode]
+# character(0)
+
+save(spam, file="./SPAM/2005v3r0/rds/SPAM2005V3r0_global.rda", compress=T)
+save(vi, file="./SPAM/2005v3r0/rds/vi.rda")
+
+
+#####################################################################################
+# 2016.11.13 More corrections to metadata, PDF License, and PNG legends
+#####################################################################################
+# Ulrike prefers `nonf` or `indu` for non-food groups
+# Also noted that the legend for VoP total for crop, food and non-food should be shown in
+# 1000 int$, otherwise the numbers are just too big.
+# => but tmap() shows `1 mln`, I think that's acceptable?
+
+vi[, var := varCode]
+vi[, varCode := str_replace(varCode, "nfood_", "indu_")]
+vi[, varCode := str_replace(varCode, "_v_", "_vp_")]
+vi[, varCode := str_replace(varCode, "_var_", "_vpha_")]
+
+setnames(spam, vi$var, vi$varCode)
+vi[, var := NULL]
+
+vi[, varDesc := str_replace(varDesc, "of circa 2005", "circa 2005")]
+vi[, varDesc := str_replace(varDesc, "production", "agricultural production")]
 
 save(spam, file="./SPAM/2005v3r0/rds/SPAM2005V3r0_global.rda", compress=T)
 save(vi, file="./SPAM/2005v3r0/rds/vi.rda")
@@ -468,9 +498,10 @@ unlink("./SPAM/2005v3r0/tiff/*")
 unlink("./SPAM/2005v3r0/nc/*")
 unlink("./SPAM/2005v3r0/csv/*")
 
-# Generate all packages
+# Generate data packages for all vars and 3 technologies
+#vars <- vi[varCode %like% "crop_" | varCode %like% "food_" | varCode %like% "nfood_", unique(varCode)]
 vars <- vi[genRaster==T & cat3 %in% c("all systems", "rainfed system", "irrigated system"), varCode]
-vars <- vi[varCode %like% "crop_" | varCode %like% "food_" | varCode %like% "nfood_", unique(varCode)]
+setkey(vi, varCode)
 
 for (i in vars) {
 
@@ -504,4 +535,4 @@ for (i in vars) {
 
 # Save all
 rm(tmp, i, j, var, spam, World, pal, m, grid.dt, old , new)
-save.image("./SPAM/tmp/spam.RData")
+save.image("./SPAM/tmp/spam2005v3r0.RData")
