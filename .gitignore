@@ -1,11 +1,10 @@
 # Everything
 /*
+.Rproj.user
 
 # Add codes
-!/R
-!/R/*
+!/**/*.R
+!/SPAM/**/vi.rda
 !/README.md
 !/LICENSE
 !/.gitignore
-
-.Rproj.user

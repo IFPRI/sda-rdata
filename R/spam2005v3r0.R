@@ -271,13 +271,13 @@ for (i in var) for (j in tech) {
   setcolorder(spam, c(3:9, 1:2, 10:length(spam)))
 
   # Save to RDS for reuse (each file is ~15Mb)
-  saveRDS(spam, file=str_replace(str_replace(f, ".csv", ".rds"), "/in/", "/rds/"))
+  saveRDS(spam, file=str_replace(str_replace(f, ".csv", ".rds"), "/in/", "/rda/"))
 }
 
 rm(spam)
 
 # In fact we should be able to combine all vars into 1 simple .rda file
-r <- list.files("./SPAM/2005v3r0/rds", full.names=T)
+r <- list.files("./SPAM/2005v3r0/rda", full.names=T)
 r <- lapply(r, readRDS)
 cell5m <- lapply(r, `[[`, "CELL5M")
 sapply(cell5m, length)
@@ -311,15 +311,15 @@ setnames(spam, "iso3", "ISO3")
 setnames(spam, "prod_level", "PROD_LEVEL")
 
 # Save
-save(spam, file="./SPAM/2005v3r0/rds/SPAM2005V3r0_global.rda", compress=T)
+save(spam, file="./SPAM/2005v3r0/rda/SPAM2005V3r0_global.rda", compress=T)
 
 
 #####################################################################################
 # Complete and save metadata table `vi`
 # Best to use the same metadata schema as CELL5M (?) to make APIs compatible
 # Export and fix metadata in MSExcel
-write.csv(vi, "./SPAM/2005v3r0/rds/vi.csv", na="", row.names=F)
-vi <- fread("./SPAM/2005v3r0/rds/vi.csv")
+write.csv(vi, "./SPAM/2005v3r0/rda/vi.csv", na="", row.names=F)
+vi <- fread("./SPAM/2005v3r0/rda/vi.csv")
 
 # More manual recodes
 vi[cropCode=="", cropCode := NA]
@@ -357,7 +357,7 @@ vi[varCode=="name_adm2", varCode := "ADM2_NAME"]
 vi[varCode=="prod_level", varCode := "PROD_LEVEL"]
 vi[is.na(varDesc), varDesc := varLabel]
 
-save(vi, file="./SPAM/2005v3r0/rds/vi.rda")
+save(vi, file="./SPAM/2005v3r0/rda/vi.rda")
 # => this should be enough to run SPAM through HCAPI3 (eventually)
 
 # Define auxiliary variables for CSV and metadata
@@ -372,8 +372,8 @@ cite <- 'You, L., U. Wood-Sichra, S. Fritz, Z. Guo, L. See, and J. Koo. 2016. "S
 # Ulrike prefers to append "T" to technologies, so modify `spam` and `vi`
 # accordingly
 
-load("./SPAM/2005v3r0/rds/SPAM2005V3r0_global.rda")
-load("./SPAM/2005v3r0/rds/vi.rda")
+load("./SPAM/2005v3r0/rda/SPAM2005V3r0_global.rda")
+load("./SPAM/2005v3r0/rda/vi.rda")
 
 # File preparation
 var <- c("H", "A", "P", "Y", "V")
@@ -458,8 +458,8 @@ names(spam)[!names(spam) %in% vi$varCode]
 vi[!varCode %in% names(spam), varCode]
 # character(0)
 
-save(spam, file="./SPAM/2005v3r0/rds/SPAM2005V3r0_global.rda", compress=T)
-save(vi, file="./SPAM/2005v3r0/rds/vi.rda")
+save(spam, file="./SPAM/2005v3r0/rda/SPAM2005V3r0_global.rda", compress=T)
+save(vi, file="./SPAM/2005v3r0/rda/vi.rda")
 
 
 #####################################################################################
@@ -481,16 +481,16 @@ vi[, var := NULL]
 vi[, varDesc := str_replace(varDesc, "of circa 2005", "circa 2005")]
 vi[, varDesc := str_replace(varDesc, "production", "agricultural production")]
 
-save(spam, file="./SPAM/2005v3r0/rds/SPAM2005V3r0_global.rda", compress=T)
-save(vi, file="./SPAM/2005v3r0/rds/vi.rda")
+save(spam, file="./SPAM/2005v3r0/rda/SPAM2005V3r0_global.rda", compress=T)
+save(vi, file="./SPAM/2005v3r0/rda/vi.rda")
 
 
 
 #####################################################################################
 # Package SPAM 2005 V3r0
 #####################################################################################
-load("./SPAM/2005v3r0/rds/SPAM2005V3r0_global.rda")
-load("./SPAM/2005v3r0/rds/vi.rda")
+load("./SPAM/2005v3r0/rda/SPAM2005V3r0_global.rda")
+load("./SPAM/2005v3r0/rda/vi.rda")
 
 # Clean up output dirs
 unlink("./SPAM/2005v3r0/png/*")
