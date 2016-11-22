@@ -34,6 +34,10 @@ spamPNG <- function(var, pal="YlOrRd", file=paste0("./", var, ".png"), ...) {
     r[r <= 0] <- NA
   }
 
+  # TODO Ulrike also suggested to cut all values below 1ha
+  # We also need to amend the units to show ha/pixel, mt/pixel
+  # Also make sure the max value is shown on the scale, and add a footnote
+
   # Tmap it
   m <- tm_shape(World) +
     tm_fill("white", border.col="grey70", lwd=.2) +
