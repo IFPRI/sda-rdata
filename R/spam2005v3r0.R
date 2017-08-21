@@ -13,7 +13,7 @@ library(stringr)
 library(tmap)
 
 setwd("~/Projects/hc-data")
-load("./SPAM/tmp/spam.RData")
+load("./SPAM/tmp/spam2005v3r0.RData")
 
 #####################################################################################
 # Helper - Generate PNG (no Data Packaging needed)
@@ -487,6 +487,66 @@ vi[, varDesc := str_replace(varDesc, "production", "agricultural production")]
 
 save(spam, file="./SPAM/2005v3r0/rda/SPAM2005V3r0_global.rda", compress=T)
 save(vi, file="./SPAM/2005v3r0/rda/vi.rda")
+
+
+#####################################################################################
+# 2016.11.29 Additional corrections to PNG format
+#####################################################################################
+# Ulrike suggested cutting all area values at below 1 ha (we would need to reflect
+# that in the production and yield layers as well)
+# Amend legend labels to show "ha per pixel", "mt per pixel", "kg/ha"
+# Move logos around
+# See if we can add titles, labels and logos using lattice/grid instead of tmap.
+# Try quick fixes to make file downloads work in mapspam.info
+# Also Ulrike would like to show max values in the legend somewhere.
+
+# Test loading PNG and adding annotations using ggplot()
+library(ggplot2)
+library(png)
+
+world <- map_data("world")
+i <- "maiz_h_ta"
+
+m <- readPNG("./SPAM/2005v3r0/png/spam2005v3r0_maiz_h_ta.png")
+dim(m)
+# [1] 2400 3600    3
+
+png("./SPAM/test2.png", units="in", width=6, dpi=600)
+plotRGB(m)
+title(
+  main="Testing",
+  sub="Testing2")
+
+dev.off()
+
+m <- melt(m)
+m <- dcast(m, Var1+Var2~Var3)
+m$Var1 <- -m$Var1
+
+no_axis <- theme(
+  axis.line=element_blank(),
+  axis.text.x=element_blank(),
+  axis.text.y=element_blank(),
+  axis.ticks=element_blank(),
+  axis.title.x=element_blank(),
+  axis.title.y=element_blank(),
+  legend.position="none",
+  panel.background=element_blank(),
+  panel.border=element_blank(),
+  panel.grid.major=element_blank(),
+  panel.grid.minor=element_blank(),
+  plot.background=element_blank(),
+  plot.title=element_text(size=12, hjust=0.5, face="normal", color="maroon", vjust=-1))
+
+p <- qplot(data=m, x=Var2, y=Var1, fill=rgb(m[, 3:5]), geom="tile") +
+  scale_fill_identity(guide="none") +
+  coord_equal() + no_axis +
+  labs(
+    title="Testing",
+    subtitle="testing 2")
+
+ggsave("./SPAM/test.png", p, width=6, units="in", dpi=600)
+
 
 
 

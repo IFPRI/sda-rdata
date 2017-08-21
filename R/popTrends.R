@@ -710,16 +710,18 @@ tmap_mode("view")
 gpw.urb2.m <- gpw.urb2[gpw.urb2$UN_2015_E > 2000,] # | gpw.urb2$UN_2015_DS >= 50000
 
 m <- tm_shape(gpw.urb2.m) +
-  tm_bubbles(col="GROWRATE_20", size="UN_2015_E", scale=1,
+  tm_bubbles(col="GROWRATE_20", size="UN_2015_E", scale=.8, alpha=.9,
     palette="-Spectral", border.col="white", border.lwd=0.4,
     breaks=c(-20,0,.15,.3,.45,.6,.75,.9,1,26),
     labels=c("pop. loss", " 0 - 15", "15 - 30", "30 - 45", "45 - 60", "60 - 75", "75 - 90", "90 - 100", "above 100% gain"),
     title.col="Urban Population Gain/Loss <br/><small>2000-2020 Projected (percent)</small>",
-    title.size="Urban Population Hotspots, 2015") +
+    title.size="Urban Population Hotspots, 2015",
+    popup.vars=c("NAME1", "NAME2", "NAME3", "UN_2020_E")) +
   tm_credits("Source: GPWv4. \nIFPRI/HarvestChoice, 2016.") +
   tm_layout(legend.position=c("LEFT", "BOTTOM"),
+    legend.text.size=.7,
     basemaps=c("Thunderforest.TransportDark", "Esri.WorldGrayCanvas")) +
-  tm_view(alpha=0.9, popup.all.data=T, dot.size.fixed=T)
+  tm_view(symbol.size.fixed=T)
 
 m <- tmap_leaflet(m)
 

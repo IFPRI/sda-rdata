@@ -2318,3 +2318,49 @@ knitr::kable(l2.map.20.dt[ISO3=="MDG", .N, keyby=eval(names(l2.new.dt)[2:6])])
 l2.map.dt <- data.table(l2.map@data)
 knitr::kable(l2.map.dt[ISO3=="MDG", .N, keyby=eval(names(l2.udel)[3:7])])
 # => same as above
+
+
+
+#####################################################################################
+# TODO 2016.12.17 Admin-1 1980-2015 Climate Series for DataWheel
+#####################################################################################
+# - cropland-weighted long-term rainfall (CHIRPS)
+# - cropland-weighted SPEI (count event types)
+# - drought occurrence and median duration
+# - use recent GAUL boundaries
+# - % of cropland area where rainfall variability is higher than 30% aggregated to adm-2
+#
+# CHIRPS v2
+# Funk, Chris, Pete Peterson, Martin Landsfeld, Diego Pedreros, James Verdin,
+# Shraddhanand Shukla, Gregory Husak, James Rowland, Laura Harrison, Andrew Hoell &
+# Joel Michaelsen. "The climate hazards infrared precipitation with stations—a new
+# environmental record for monitoring extremes". Scientific Data 2, 150066.
+# doi:10.1038/sdata.2015.66 2015. Downloaded from
+# ftp://ftp.chg.ucsb.edu/pub/org/chg/products/CHIRPS-2.0/africa_monthly/
+#
+# SPEIBase v2.4
+# Vicente-Serrano S.M., Beguería S., López-Moreno J.I. (2010) A Multi-scalar drought
+# index sensitive to global warming: The Standardized Precipitation Evapotranspiration
+# Index – SPEI. Journal of Climate 23(7), 1696-1718, DOI: 10.1175/2009JCLI2909.1.
+# Downloaded from http://digital.csic.es/handle/10261/22405.
+#
+# IIASA Cropland
+# Fritz et. al. 2015. Mapping global cropland and field size. Global Change Biology.
+# http://onlinelibrary.wiley.com/doi/10.1111/gcb.12838/abstract
+#
+
+library(data.table)
+library(raster)
+library(foreign)
+
+setwd("/home/projects/hc-data")
+load("../hc-cell5m/temp/cell5mDataUpdate.2016.07_bio.RData")
+# SPEI and drought were extracted to CELL5M earlier, see /hc-cell5m/R/cell5mDataUpdate.2016.07_bio.R
+# We need to summarize CHIRPS to CELL5M as well
+
+
+
+
+
+
+

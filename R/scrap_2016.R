@@ -1,5 +1,5 @@
 #####################################################################################
-# 2016.07.02 Reporjecting rasters across the antemeridian
+# 2016.07.02 Reprojecting rasters across the antemeridian
 #####################################################################################
 
 library(raster)
@@ -32,3 +32,19 @@ plotRGB(BS.terra.sa2)
 #  color intensity -0.00130533, not in [0,1]
 
 plot(BS.terra.sa2[[1]])
+
+
+# Convert complex objects to/from JSON
+# https://plus.google.com/+StephenMcNeill_ZL4HG/posts/CFB9MAKVjra
+library(hcapi3)
+library(jsonlite)
+library(listviewer)
+
+dt <- hcapi(var=c("maiz_y", "ELEVATION"), iso3="ETH")
+o <- lm(maiz_y~ELEVATION+Y, data=dt)
+summary(o)
+j <- toJSON(o, flatten=T)
+
+
+
+
